@@ -1,0 +1,89 @@
+'''
+File: test_zoo.py
+Description: Unit tests for the Zoo Management System classes and behaviours.
+Author: Seyedvahid Hashemian
+ID: 110426111
+Username: HASSY043
+This is my own work as defined by the University's Academic Integrity Policy.
+'''
+
+
+import unittest
+
+from animals import Mammal, Bird, Reptile, HealthRecord, ValidationError
+from enclosures import Enclosure
+from staff import Zookeeper, Veterinarian
+from zoo import Zoo
+
+
+class ZooTests(unittest.TestCase):
+
+    def test_enclosure_accepts_only_matching_category(self):
+        zoo = Zoo("Test Zoo")
+        lion = Mammal(name="Leo", species="Lion", age=5, diet="meat", category="mammal")
+        aviary = Enclosure(name="Birds", environment="aviary", size_sq_m=100, allowed_category="bird")
+
+        with self.assertRaises(ValidationError):
+            aviary.add_animal(lion)
+
+    def test_animal_under_treatment_cannot_be_moved(self):
+        zoo = Zoo("Test Zoo")
+        lion = Mammal(name="Leo", species="Lion", age=5, diet="meat", category="mammal")
+        savannah = Enclosure(name="Savannah", environment="savannah", size_sq_m=1000, allowed_category="mammal")
+        zoo.add_enclosure(savannah)
+        vet = Veterinarian(name="Vera", role="veterinarian")
+        vet.health_check(lion, "Injury", severity=3, treatment="Rest")
+
+        with self.assertRaises(ValidationError):
+            zoo.assign_animal_to_enclosure(lion, savannah)
+
+        # Resolve and then move
+        vet.resolve_issue(lion, 0)
+        zoo.assign_animal_to_enclosure(lion, savannah)
+        self.assertIn(lion, savannah.animals)
+
+    def test_zookeeper_cleaning_requires_assignment(self):
+        zk = Zookeeper(name="Sam", role="zookeeper")
+        savannah = Enclosure(name="Savannah", environment="savannah", size_sq_m=1000, allowed_category="mammal", cleanliness=10)
+        with self.assertRaises(ValidationError):
+            zk.clean_enclosure(savannah)
+        zk.assign_enclosure(savannah)
+        msg = zk.clean_enclosure(savannah)
+        self.assertEqual(savannah.cleanliness, 100)
+        self.assertIn("cleaned enclosure", msg)
+
+    def test_reports(self):
+        zoo = Zoo("Test Zoo")
+        parrot = Bird(name="Polly", species="Parrot", age=2, diet="seeds", category="bird")
+        python = Reptile(name="Snek", species="Python", age=4, diet="rodents", category="reptile")
+        zoo.add_animal(parrot)
+        zoo.add_animal(python)
+
+        by_species = zoo.animals_by_species()
+        self.assertEqual(set(by_species.keys()), {"Parrot", "Python"})
+        self.assertEqual(by_species["Parrot"], ["Polly"])
+
+        aviary = Enclosure(name="Aviary", environment="aviary", size_sq_m=200, allowed_category="bird")
+        rept = Enclosure(name="Reptarium", environment="desert", size_sq_m=200, allowed_category="reptile")
+        zoo.add_enclosure(aviary)
+        zoo.add_enclosure(rept)
+        zoo.assign_animal_to_enclosure(parrot, aviary)
+        zoo.assign_animal_to_enclosure(python, rept)
+
+        statuses = zoo.enclosure_status_report()
+        self.assertEqual(len(statuses), 2)
+        self.assertTrue(any("Aviary" in s for s in statuses))
+
+    def test_validation(self):
+        with self.assertRaises(ValidationError):
+            Enclosure(name="Bad", environment="desert", size_sq_m=-1, allowed_category="reptile")
+        with self.assertRaises(ValidationError):
+            Mammal(name="M", species="Lion", age=-1, diet="meat", category="mammal")
+        with self.assertRaises(ValidationError):
+            HealthRecord(description="", date_reported="2025-01-01", severity=3)
+        with self.assertRaises(ValidationError):
+            HealthRecord(description="x", date_reported="2025-01-01", severity=0)
+
+
+if __name__ == "__main__":
+    unittest.main()
